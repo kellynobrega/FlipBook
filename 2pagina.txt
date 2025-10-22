@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flipbook</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    #flipbook-container {
+      width: 80%;
+      max-width: 800px;
+      background-color: white;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      border-radius: 10px;
+      padding: 20px;
+      position: relative;
+    }
+
+    .flipbook {
+      width: 100%;
+      height: 500px;
+      position: relative;
+    }
+
+    .page {
+      background-color: #fff;
+      border: 1px solid #ccc;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    #flipbook-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 10px;
+    }
+
+    #flipbook-controls button {
+      background-color: #1da57a;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/turn.js/4.1.0/jquery.turn.min.css">
+</head>
+<body>
+
+  <div id="flipbook-container">
+    <div class="flipbook">
+      <!-- As páginas do flipbook serão adicionadas aqui -->
+    </div>
+
+    <!-- Controles -->
+    <div id="flipbook-controls">
+      <button id="zoom-in">Zoom +</button>
+      <button id="zoom-out">Zoom -</button>
+      <button id="fullscreen">Tela Cheia</button>
+      <button id="sound-toggle">Som</button>
+    </div>
+  </div>
+
+  <audio id="page-flip-sound" src="caminho/para/seu/arquivo-de-som.mp3" preload="auto"></audio>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/turn.js/4.1.0/jquery.turn.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.min.js"></script>
+  <script>
+    $(document).ready(function() {
+      const flipbook = $(".flipbook");
+      const pageFlipSound = document.getElementById("page-flip-sound");
+      let pdfURL = localStorage.getItem("pdfURL"); // Recupera a URL do PDF
+      let zoomLevel = 1.5; // Inicializa o zoom
+
+      if (!pdfURL) {
+        alert("URL do PDF não encontrada!");
+        return;
+      }
+
+      // Carregar o PDF e renderizar as páginas no flipbook
+      pdfjsLib.getDocument(pdfURL).promise.then(function(pdf) {
+        for (let i = 1; i <= pdf.numPages; i++) {
+          pdf.getPage(i).then(function(page) {
+            const scale = zoomLevel;
+            const viewport = page.getViewport({ scale });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            const renderContext = {
+              canvasContext: context,
+              viewport: viewport
+            };
+            page.render(renderContext).promise.then(function() {
+              // Adiciona a página ao flipbook
+              const pageDiv = $('<div class="page"></div>').append(canvas);
+              flipbook.append(pageDiv);
+              if (i === pdf.numPages) {
+                // Inicializa o Turn.js após carregar todas as páginas
+                flipbook.turn({
+                  width: 800,
+                  height: 500,
+                  autoCenter: true,
+                  when: {
+                    turned: function(event, page, view) {
+                      pageFlipSound.play();
+                    }
+                  }
+                });
+              }
+            });
+          });
+        }
+      }).catch(function(error) {
+        alert("Erro ao carregar o PDF: " + error.message);
+      });
+
+      // Função de Zoom
+      $('#zoom-in').click(function() {
+        zoomLevel += 0.5; // Aumenta o zoom
+        reloadFlipbook(); // Recarrega o flipbook com o novo zoom
+      });
+
+      $('#zoom-out').click(function() {
+        zoomLevel = Math.max(1, zoomLevel - 0.5); // Diminui o zoom
+        reloadFlipbook(); // Recarrega o flipbook com o novo zoom
+      });
+
+      // Função para recarregar o flipbook com o novo nível de zoom
+      function reloadFlipbook() {
+        flipbook.turn('destroy').empty(); // Destrói e limpa o flipbook
+        pdfjsLib.getDocument(pdfURL).promise.then(function(pdf) {
+          for (let i = 1; i <= pdf.numPages; i++) {
+            pdf.getPage(i).then(function(page) {
+              const scale = zoomLevel;
+              const viewport = page.getViewport({ scale });
+              const canvas = document.createElement('canvas');
+              const context = canvas.getContext('2d');
+              canvas.height = viewport.height;
+              canvas.width = viewport.width;
+              const renderContext = {
+                canvasContext: context,
+                viewport: viewport
+              };
+              page.render(renderContext).promise.then(function() {
+                const pageDiv = $('<div class="page"></div>').append(canvas);
+                flipbook.append(pageDiv);
+                if (i === pdf.numPages) {
+                  // Inicializa o Turn.js após carregar todas as páginas
+                  flipbook.turn({
+                    width: 800,
+                    height: 500,
+                    autoCenter: true,
+                    when: {
+                      turned: function(event, page, view) {
+                        pageFlipSound.play();
+                      }
+                    }
+                  });
+                }
+              });
+            });
+          }
+        });
+      }
+
+      // Função de Tela Cheia
+      $('#fullscreen').click(function() {
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen();
+        } else if (document.documentElement.mozRequestFullScreen) {
+          document.documentElement.mozRequestFullScreen();
+        } else if (document.documentElement.webkitRequestFullscreen) {
+          document.documentElement.webkitRequestFullscreen();
+        } else if (document.documentElement.msRequestFullscreen) {
+          document.documentElement.msRequestFullscreen();
+        }
+      });
+
+      // Função de Som
+      $('#sound-toggle').click(function() {
+        if (pageFlipSound.paused) {
+          pageFlipSound.play();
+        } else {
+          pageFlipSound.pause();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
