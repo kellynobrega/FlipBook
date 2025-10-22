@@ -61,10 +61,7 @@
 
   <div id="flipbook-container">
     <div class="flipbook">
-      <!-- A primeira página será a capa -->
-      <div class="page" id="first-page">
-        <canvas id="first-page-canvas"></canvas>
-      </div>
+      <!-- As páginas do flipbook serão adicionadas aqui -->
     </div>
 
     <!-- Controles -->
@@ -75,43 +72,29 @@
     </div>
   </div>
 
+  <audio id="page-flip-sound" src="caminho/para/seu/arquivo-de-som.mp3" preload="auto"></audio>
+
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/turn.js/4.1.0/jquery.turn.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.min.js"></script>
   <script>
     $(document).ready(function() {
       const flipbook = $(".flipbook");
-      const pdfData = localStorage.getItem("pdfData");
+      const pageFlipSound = document.getElementById("page-flip-sound");
+      const urlParams = new URLSearchParams(window.location.search);
+      const pdfURL = urlParams.get('pdfURL'); // Pega a URL do PDF da URL da página
+      let zoomLevel = 1.5; // Inicializa o zoom
 
-      if (!pdfData) {
-        alert("Nenhum PDF foi carregado para visualização.");
+      if (!pdfURL) {
+        alert("URL do PDF não encontrada!");
         return;
       }
 
-      // Carregar o PDF do localStorage
-      const loadingTask = pdfjsLib.getDocument(pdfData);
-      loadingTask.promise.then(function(pdf) {
-        // Renderizar a primeira página (capa)
-        pdf.getPage(1).then(function(page) {
-          const scale = 1.5;
-          const viewport = page.getViewport({ scale });
-          const canvas = document.getElementById('first-page-canvas');
-          const context = canvas.getContext('2d');
-          canvas.height = viewport.height;
-          canvas.width = viewport.width;
-          const renderContext = {
-            canvasContext: context,
-            viewport: viewport
-          };
-          page.render(renderContext).promise.then(function() {
-            console.log("Primeira página renderizada como capa.");
-          });
-        });
-
-        // Carregar as outras páginas no flipbook
-        for (let i = 2; i <= pdf.numPages; i++) {
+      // Carregar o PDF e renderizar as páginas no flipbook
+      pdfjsLib.getDocument(pdfURL).promise.then(function(pdf) {
+        for (let i = 1; i <= pdf.numPages; i++) {
           pdf.getPage(i).then(function(page) {
-            const scale = 1.5;
+            const scale = zoomLevel;
             const viewport = page.getViewport({ scale });
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
@@ -122,13 +105,20 @@
               viewport: viewport
             };
             page.render(renderContext).promise.then(function() {
+              // Adiciona a página ao flipbook
               const pageDiv = $('<div class="page"></div>').append(canvas);
               flipbook.append(pageDiv);
               if (i === pdf.numPages) {
+                // Inicializa o Turn.js após carregar todas as páginas
                 flipbook.turn({
                   width: 800,
                   height: 500,
                   autoCenter: true,
+                  when: {
+                    turned: function(event, page, view) {
+                      pageFlipSound.play();
+                    }
+                  }
                 });
               }
             });
