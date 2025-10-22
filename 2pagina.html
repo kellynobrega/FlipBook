@@ -199,6 +199,17 @@
         }
       });
     });
+
+    // Função para visualizar o PDF em uma nova aba
+    function viewPDF() {
+      const currentPDFURL = localStorage.getItem("pdfURL"); // Recupera a URL do PDF
+      if (currentPDFURL) {
+        // Redireciona para a página do flipbook
+        window.location.href = "2pagina.html"; // Página do flipbook
+      } else {
+        alert('Nenhum PDF foi carregado para visualização.');
+      }
+    }
   </script>
 </body>
 </html>
