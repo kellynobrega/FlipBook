@@ -9,7 +9,7 @@
       font-family: Arial, sans-serif;
       margin: 0;
       padding: 0;
-      background-color: #f0f0f0;
+      background-color: #f5f5f5;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -18,41 +18,72 @@
 
     #flipbook-container {
       width: 80%;
-      max-width: 800px;
+      max-width: 900px;
       background-color: white;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      border-radius: 15px;
       padding: 20px;
       position: relative;
     }
 
     .flipbook {
       width: 100%;
-      height: 500px;
+      height: 600px;
       position: relative;
+      background-color: #fff;
+      border-radius: 10px;
+      overflow: hidden;
     }
 
     .page {
       background-color: #fff;
       border: 1px solid #ccc;
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin: 10px;
     }
 
     #flipbook-controls {
       position: absolute;
       top: 10px;
-      right: 10px;
+      right: 20px;
       display: flex;
-      gap: 10px;
+      gap: 15px;
+      z-index: 10;
     }
 
     #flipbook-controls button {
       background-color: #1da57a;
       color: white;
-      padding: 5px 10px;
+      padding: 10px 15px;
       border: none;
-      border-radius: 5px;
+      border-radius: 8px;
       cursor: pointer;
+      font-size: 14px;
+    }
+
+    #flipbook-controls button:hover {
+      background-color: #17a26b;
+    }
+
+    #flipbook-controls button:active {
+      background-color: #148b5a;
+    }
+
+    #cover-preview {
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      background-color: #f7f7f7;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+    }
+
+    #cover-preview canvas {
+      width: 100px;
+      height: auto;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/turn.js/4.1.0/jquery.turn.min.css">
@@ -60,8 +91,13 @@
 <body>
 
   <div id="flipbook-container">
+    <!-- Pré-visualização da capa -->
+    <div id="cover-preview">
+      <canvas id="cover-canvas"></canvas>
+    </div>
+
     <div class="flipbook">
-      <!-- As páginas do flipbook serão adicionadas aqui -->
+      <!-- As páginas do flipbook serão renderizadas aqui -->
     </div>
 
     <!-- Controles -->
@@ -69,11 +105,8 @@
       <button id="zoom-in">Zoom +</button>
       <button id="zoom-out">Zoom -</button>
       <button id="fullscreen">Tela Cheia</button>
-      <button id="sound-toggle">Som</button>
     </div>
   </div>
-
-  <audio id="page-flip-sound" src="caminho/para/seu/arquivo-de-som.mp3" preload="auto"></audio>
 
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/turn.js/4.1.0/jquery.turn.min.js"></script>
@@ -81,20 +114,37 @@
   <script>
     $(document).ready(function() {
       const flipbook = $(".flipbook");
-      const pageFlipSound = document.getElementById("page-flip-sound");
-      let pdfURL = localStorage.getItem("pdfURL"); // Recupera a URL do PDF
-      let zoomLevel = 1.5; // Inicializa o zoom
+      const pdfData = localStorage.getItem("pdfData");
 
-      if (!pdfURL) {
-        alert("URL do PDF não encontrada!");
+      if (!pdfData) {
+        alert("Nenhum PDF foi carregado para visualização.");
         return;
       }
 
-      // Carregar o PDF e renderizar as páginas no flipbook
-      pdfjsLib.getDocument(pdfURL).promise.then(function(pdf) {
-        for (let i = 1; i <= pdf.numPages; i++) {
+      // Carregar o PDF do localStorage
+      const loadingTask = pdfjsLib.getDocument(pdfData);
+      loadingTask.promise.then(function(pdf) {
+        // Renderizar a capa (primeira página) para a pré-visualização
+        pdf.getPage(1).then(function(page) {
+          const scale = 0.5;  // Ajuste de zoom para pré-visualização
+          const viewport = page.getViewport({ scale });
+          const canvas = document.getElementById('cover-canvas');
+          const context = canvas.getContext('2d');
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          const renderContext = {
+            canvasContext: context,
+            viewport: viewport
+          };
+          page.render(renderContext).promise.then(function() {
+            console.log("Capa do PDF renderizada.");
+          });
+        });
+
+        // Carregar as outras páginas no flipbook (começando da segunda página)
+        for (let i = 2; i <= pdf.numPages; i++) {
           pdf.getPage(i).then(function(page) {
-            const scale = zoomLevel;
+            const scale = 1.5;  // Zoom para as páginas do flipbook
             const viewport = page.getViewport({ scale });
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
@@ -105,20 +155,15 @@
               viewport: viewport
             };
             page.render(renderContext).promise.then(function() {
-              // Adiciona a página ao flipbook
               const pageDiv = $('<div class="page"></div>').append(canvas);
               flipbook.append(pageDiv);
               if (i === pdf.numPages) {
-                // Inicializa o Turn.js após carregar todas as páginas
                 flipbook.turn({
-                  width: 800,
-                  height: 500,
+                  width: 900,
+                  height: 600,
                   autoCenter: true,
-                  when: {
-                    turned: function(event, page, view) {
-                      pageFlipSound.play();
-                    }
-                  }
+                  display: 'double',
+                  acceleration: true
                 });
               }
             });
@@ -129,87 +174,49 @@
       });
 
       // Função de Zoom
+      let zoomLevel = 1.5;
       $('#zoom-in').click(function() {
-        zoomLevel += 0.5; // Aumenta o zoom
-        reloadFlipbook(); // Recarrega o flipbook com o novo zoom
+        zoomLevel += 0.1;
+        renderPDF();
       });
-
       $('#zoom-out').click(function() {
-        zoomLevel = Math.max(1, zoomLevel - 0.5); // Diminui o zoom
-        reloadFlipbook(); // Recarrega o flipbook com o novo zoom
+        if (zoomLevel > 1) {
+          zoomLevel -= 0.1;
+          renderPDF();
+        }
       });
 
-      // Função para recarregar o flipbook com o novo nível de zoom
-      function reloadFlipbook() {
-        flipbook.turn('destroy').empty(); // Destrói e limpa o flipbook
-        pdfjsLib.getDocument(pdfURL).promise.then(function(pdf) {
-          for (let i = 1; i <= pdf.numPages; i++) {
-            pdf.getPage(i).then(function(page) {
-              const scale = zoomLevel;
-              const viewport = page.getViewport({ scale });
-              const canvas = document.createElement('canvas');
-              const context = canvas.getContext('2d');
-              canvas.height = viewport.height;
-              canvas.width = viewport.width;
-              const renderContext = {
-                canvasContext: context,
-                viewport: viewport
-              };
-              page.render(renderContext).promise.then(function() {
-                const pageDiv = $('<div class="page"></div>').append(canvas);
-                flipbook.append(pageDiv);
-                if (i === pdf.numPages) {
-                  // Inicializa o Turn.js após carregar todas as páginas
-                  flipbook.turn({
-                    width: 800,
-                    height: 500,
-                    autoCenter: true,
-                    when: {
-                      turned: function(event, page, view) {
-                        pageFlipSound.play();
-                      }
-                    }
-                  });
-                }
-              });
-            });
+      // Função de tela cheia
+      $('#fullscreen').click(function() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+        } else {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
           }
+        }
+      });
+
+      function renderPDF() {
+        // Re-renderizar as páginas com o novo nível de zoom
+        pdfjsLib.getDocument(pdfData).promise.then(function(pdf) {
+          pdf.getPage(1).then(function(page) {
+            const viewport = page.getViewport({ scale: zoomLevel });
+            const canvas = document.getElementById('cover-canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            const renderContext = {
+              canvasContext: context,
+              viewport: viewport
+            };
+            page.render(renderContext).promise.then(function() {
+              console.log("Página renderizada com novo zoom.");
+            });
+          });
         });
       }
-
-      // Função de Tela Cheia
-      $('#fullscreen').click(function() {
-        if (document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen();
-        } else if (document.documentElement.mozRequestFullScreen) {
-          document.documentElement.mozRequestFullScreen();
-        } else if (document.documentElement.webkitRequestFullscreen) {
-          document.documentElement.webkitRequestFullscreen();
-        } else if (document.documentElement.msRequestFullscreen) {
-          document.documentElement.msRequestFullscreen();
-        }
-      });
-
-      // Função de Som
-      $('#sound-toggle').click(function() {
-        if (pageFlipSound.paused) {
-          pageFlipSound.play();
-        } else {
-          pageFlipSound.pause();
-        }
-      });
     });
-
-    // Função para visualizar o PDF em uma nova aba
-    function viewPDF() {
-      const currentPDFURL = localStorage.getItem("pdfURL"); // Recupera a URL do PDF
-      if (currentPDFURL) {
-        // Redireciona para a página do flipbook
-        window.location.href = "2pagina.html"; // Página do flipbook
-      } else {
-        alert('Nenhum PDF foi carregado para visualização.');
-      }
-    }
   </script>
 </body>
 </html>
